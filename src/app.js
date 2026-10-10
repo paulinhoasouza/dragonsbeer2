@@ -112,7 +112,7 @@ async function action(act,id,el){switch(act){
  default:return;
  }await refresh(true);
 }
-async function submit(form){const f=Object.fromEntries(new FormData(form));switch(form.id){
+async function submit(form){const f=Object.fromEntries(new FormData(form));switch(form.getAttribute('id')){
  case 'login-form':{const {error}=await sb.auth.signInWithPassword({email:f.email,password:f.password});if(error)throw error;location.reload();return}
  case 'join-form':{let {data:{session}}=await sb.auth.getSession();if(!session){const {error}=await sb.auth.signInAnonymously({options:{captchaToken:turnstileToken||undefined}});if(error){if(window.turnstile){window.turnstile.reset();turnstileToken=null}throw error}}
  const result=await rpc('join',{token:visitToken,name:f.name});tabId=result.tab_id;localStorage.setItem('db_tab',tabId);localStorage.setItem('db_visit_token',visitToken);restoreCart();await refresh(true);startPolling();return}
