@@ -4,8 +4,8 @@
 -- 4. Execute este script no SQL Editor. Ele NÃO cria usuários de autenticação.
 do $$
 declare
-  admin_email text := 'dragonsteste@gmail.com';
-  admin_name text := 'dono dragons';
+  admin_email text := 'SEU_EMAIL_AQUI';
+  admin_name text := 'SEU_NOME_AQUI';
   admin_id uuid;
 begin
   select id into admin_id from auth.users where lower(email)=lower(admin_email) and coalesce(is_anonymous,false)=false;

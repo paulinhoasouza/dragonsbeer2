@@ -1,13 +1,13 @@
 {
   "name": "dragons-beer",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",
     "deploy": "npm run build && wrangler deploy",
     "dev": "npm run build && wrangler dev",
-    "test": "node tests/backend.mjs",
+    "test": "node tests/backend.mjs && node tests/backend-v2.mjs",
     "test:ui": "node tests/ui.mjs"
   },
   "dependencies": {

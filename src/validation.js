@@ -1,0 +1,2 @@
+export function validCPF(input){const c=String(input||'').replace(/\D/g,'');if(c.length!==11||/^(\d)\1{10}$/.test(c))return false;for(let n=9;n<=10;n++){let sum=0;for(let i=0;i<n;i++)sum+=Number(c[i])*(n+1-i);let digit=(sum*10)%11;if(digit===10)digit=0;if(digit!==Number(c[n]))return false}return true}
+export function normalizePhone(input){let p=String(input||'').replace(/\D/g,'');if(p.length===13&&p.startsWith('55'))p=p.slice(2);return p}
