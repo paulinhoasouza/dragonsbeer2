@@ -3,7 +3,7 @@ export default {
   const url=new URL(request.url);
   if(url.pathname==='/api/config') {
    const configured=!!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
-   return Response.json({configured,url:env.SUPABASE_URL||'',key:env.SUPABASE_PUBLISHABLE_KEY||'',turnstile:env.TURNSTILE_SITE_KEY||'',google:env.GOOGLE_LOGIN_ENABLED==='true',facebook:env.FACEBOOK_LOGIN_ENABLED==='true',version:'2.0.0'},{headers:{'Cache-Control':'no-store'}});
+   return Response.json({configured,url:env.SUPABASE_URL||'',key:env.SUPABASE_PUBLISHABLE_KEY||'',turnstile:env.TURNSTILE_SITE_KEY||'',google:env.GOOGLE_LOGIN_ENABLED==='true',facebook:env.FACEBOOK_LOGIN_ENABLED==='true',version:'3.0.0'},{headers:{'Cache-Control':'no-store'}});
   }
   const response=await env.ASSETS.fetch(request);
   const headers=new Headers(response.headers);
