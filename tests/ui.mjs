@@ -1,0 +1,34 @@
+import {JSDOM} from 'jsdom';
+import {readFile} from 'node:fs/promises';
+import assert from 'node:assert/strict';
+const source=(await readFile(new URL('../src/app.js',import.meta.url),'utf8')).replace("import {createClient} from '@supabase/supabase-js';","const createClient=window.__createClient;").replace("import QRCode from 'qrcode';","const QRCode={toDataURL:async()=> 'data:image/png;base64,'};");
+const sleep=()=>new Promise(r=>setTimeout(r,20));
+async function until(fn){for(let i=0;i<50;i++){if(fn())return;await sleep()}throw Error('Timeout aguardando interface')}
+function setup(path,handler,{session=true,storage={}}={}){
+ const dom=new JSDOM('<div id="app"></div><dialog id="modal"></dialog><div id="toasts"></div>',{url:'https://test.invalid'+path,runScripts:'outside-only',pretendToBeVisual:true});const w=dom.window;
+ for(const [k,v] of Object.entries(storage))w.localStorage.setItem(k,v);
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
+ w.confirm=()=>true;w.fetch=async()=>({json:async()=>({configured:true,url:'https://project.supabase.co',key:'test'})});
+ const calls=[];w.__createClient=()=>({auth:{getSession:async()=>({data:{session:session?{user:{id:'test'}}:null}}),signInAnonymously:async()=>{session=true;return {error:null}},signInWithPassword:async()=>({error:null}),signOut:async()=>({error:null})},rpc:async(name,{op,args})=>{calls.push({op,args:structuredClone(args)});try{return{data:await handler(op,args),error:null}}catch(e){return{data:null,error:{message:e.message,code:e.code}}}}});
+ w.eval(source);return{w,dom,calls,close:()=>w.close()};
+}
+const clone=o=>structuredClone(o);
+const tab={id:'tab-a',visit_id:'visit-a',table_name:'1',mode:'shared',name:'Conta da mesa',status:'open',total_cents:0,orders:[]};
+const product={id:'agua',name:'Água',description:'Sem gás',category:'Bebidas',station:'bar',price_cents:500,image:'',active:true};
+let count=0;async function test(name,fn){await fn();console.log('✓ '+name);count++}
+await test('Portal mantém acessos separados e não mostra botões de equipe ao cliente',async()=>{const a=setup('/',()=>{});assert.equal(a.w.document.querySelectorAll('a.card').length,4);a.close()});
+await test('Cliente entra pelo QR, envia pedido e preserva identificador após falha de rede',async()=>{
+ const s={tab:clone(tab),products:[clone(product)]};let fail=true;
+ const a=setup('/cliente?acesso=token-a',async(op,args)=>{if(op==='join')return{tab_id:'tab-a'};if(op==='customer_state')return clone(s);if(op==='place_order'){if(fail){fail=false;throw Error('Falha de rede')}s.tab.orders=[{id:'order-abc',customer_name:'José',created_at:new Date().toISOString(),note:args.note,items:[{...product,id:'item-a',quantity:1,unit_cents:500,status:'pending'}]}];s.tab.total_cents=500;return{order_id:'order-abc'}}},{session:false});
+ await until(()=>a.w.document.querySelector('#join-form'));const f=a.w.document.querySelector('#join-form');f.elements.name.value='José';f.dispatchEvent(new a.w.Event('submit',{bubbles:true,cancelable:true}));
+ await until(()=>a.w.document.querySelector('[data-act=add]'));assert.equal(a.w.document.querySelector('a[href="/admin"]'),null);
+ a.w.document.querySelector('[data-act=add]').click();await sleep();a.w.document.querySelector('[data-act=cart]').click();await sleep();
+ a.w.document.querySelector('#order-form').dispatchEvent(new a.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>a.w.document.querySelector('#toasts').textContent.includes('Falha de rede'));
+ assert.ok(a.w.localStorage.getItem('db_pending_tab-a'));a.w.document.querySelector('#order-form').dispatchEvent(new a.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>a.w.document.querySelector('#app').textContent.includes('order-ab'));
+ const orders=a.calls.filter(c=>c.op==='place_order');assert.equal(orders.length,2);assert.equal(orders[0].args.request_id,orders[1].args.request_id);assert.equal(a.w.localStorage.getItem('db_pending_tab-a'),null);a.close();
+});
+await test('Cozinha avança item sem mudar de tela',async()=>{const s={items:[{id:'item-a',order_id:'order-abc',name:'Hambúrguer',station:'kitchen',quantity:1,status:'pending',table_name:'1',tab_name:'Conta',customer_name:'José',created_at:new Date().toISOString()}]};const a=setup('/cozinha',async(op,args)=>{if(op==='profile')return{role:'kitchen',name:'Equipe'};if(op==='station_state')return clone(s);if(op==='advance_item'){s.items[0].status=args.next;return{ok:true}}});await until(()=>a.w.document.querySelector('[data-act=advance]'));a.w.document.querySelector('[data-act=advance]').click();await until(()=>a.w.document.querySelector('[data-next=ready]'));assert.equal(a.w.location.pathname,'/cozinha');a.close()});
+await test('Caixa mantém alerta até assumir e pede confirmação antes de receber',async()=>{const t={...clone(tab),status:'requested',payment_method:'pix',requested_at:new Date().toISOString()};const s={tables:[{id:'table-a',name:'1',active:true,visit:{id:'visit-a',mode:'shared',opened_at:new Date().toISOString(),tabs:[t]}}]};const a=setup('/caixa',async(op,args)=>{if(op==='profile')return{role:'cashier',name:'Caixa'};if(op==='cashier_state')return clone(s);if(op==='acknowledge'){t.status='attending';return{ok:true}}});await until(()=>a.w.document.querySelector('[data-act=ack]'));assert.ok(a.w.document.title.startsWith('(1)'));a.w.document.querySelector('[data-act=ack]').click();await until(()=>!a.w.document.querySelector('[data-act=ack]'));a.w.document.querySelector('[data-act=tab]').click();await sleep();a.w.document.querySelector('[data-act=pay-form]').click();await sleep();assert.ok(a.w.document.querySelector('#pay-form input[type=checkbox][required]'));assert.equal(a.w.document.querySelector('#pay-form').elements.expected_cents.value,'0');a.close()});
+await test('Admin adiciona produto e envia preço em centavos',async()=>{const s={products:[product],staff:[],tables:[]};const a=setup('/admin',async op=>op==='profile'?{role:'admin',name:'Admin'}:clone(s));await until(()=>a.w.document.querySelector('[data-act=product]'));a.w.document.querySelector('[data-act=product]').click();await sleep();const f=a.w.document.querySelector('#product-form');f.elements.name.value='Produto';f.elements.price.value='12.90';f.elements.category.value='Bebidas';f.dispatchEvent(new a.w.Event('submit',{bubbles:true,cancelable:true}));await until(()=>a.calls.some(c=>c.op==='save_product'));assert.equal(a.calls.find(c=>c.op==='save_product').args.price_cents,1290);a.close()});
+await test('Perfil de bar não entra em administração',async()=>{const a=setup('/admin',async()=>({role:'bar'}));await until(()=>a.w.document.body.textContent.includes('Acesso não autorizado'));assert.equal(a.calls.filter(c=>c.op==='admin_state').length,0);a.close()});
+console.log(`\n${count} cenários de interface passaram em DOM simulado. Sem QA visual em navegador.`);
