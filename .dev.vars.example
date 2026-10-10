@@ -1,0 +1,4 @@
+SUPABASE_URL=https://SEU-PROJETO.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_SUA_CHAVE_PUBLICA
+# Opcional: use com a chave secreta correspondente configurada SOMENTE no Supabase Auth.
+TURNSTILE_SITE_KEY=
