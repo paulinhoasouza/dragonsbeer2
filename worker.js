@@ -19,7 +19,8 @@ export default {
    const configured=!!env.SUPABASE_URL && !!env.SUPABASE_PUBLISHABLE_KEY;
    return Response.json({configured,url:env.SUPABASE_URL||'',key:env.SUPABASE_PUBLISHABLE_KEY||'',turnstile:env.TURNSTILE_SITE_KEY||'',google:env.GOOGLE_LOGIN_ENABLED==='true',facebook:env.FACEBOOK_LOGIN_ENABLED==='true',version:'3.0.0'},{headers:{'Cache-Control':'no-store'}});
   }
-  const response=await env.ASSETS.fetch(request);
+  const assetRequest=url.pathname==='/totem'?new Request(new URL('/totem.html',url.origin),request):request;
+  const response=await env.ASSETS.fetch(assetRequest);
   const headers=new Headers(response.headers);
   headers.set('X-Content-Type-Options','nosniff');
   headers.set('Referrer-Policy','no-referrer');
