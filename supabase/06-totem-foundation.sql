@@ -373,4 +373,16 @@ grant execute on function public.kiosk_order_status(uuid) to service_role;
 grant execute on function public.kiosk_queued_calls(integer) to service_role;
 grant execute on function public.kiosk_ack_call(uuid) to service_role;
 
+-- Cardapio publico de leitura restrita ao backend. Nunca expor a service_role ao totem.
+create or replace function public.kiosk_public_catalog()
+returns jsonb language sql stable security definer set search_path='' as $
+ select coalesce(jsonb_agg(jsonb_build_object(
+   'id',p.id,'name',p.name,'description',p.description,'category',p.category,
+   'station',p.station,'price_cents',p.price_cents,'image',p.image)
+   order by p.category,p.name),'[]'::jsonb)
+ from dragons.products p where p.active
+$;
+revoke all on function public.kiosk_public_catalog() from public,anon,authenticated;
+grant execute on function public.kiosk_public_catalog() to service_role;
+
 commit;
